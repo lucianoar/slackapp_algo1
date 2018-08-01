@@ -1,9 +1,13 @@
 require("dotenv").config();
 
 const express = require("express");
+const request = require("request");
 const bodyParser = require("body-parser");
-const { find } = require("./users");
+const { findUser, listUsers } = require("./users");
+const { a } = require("./gsheets.js");
 const debug = require("debug")("slackapp_algo1");
+const { google } = require("googleapis");
+const { get_notes_of_student } = require("./gsheets");
 
 const app = express();
 
@@ -15,63 +19,71 @@ app.get("/", (req, res) => {
   res.send("<h2>Slack app algo1 running...</h2>");
 });
 
-const fakeData = [
-  {
-    titulo: "Trabajo practico N1",
-    nota: 9,
-    link: "http://www.google.com",
-    observaciones: "Muy buen trabajo",
-    fecha: "18/02/18"
-  },
-  {
-    titulo: "Examen parcial 1",
-    nota: 4,
-    link: "http://www.google.com",
-    observaciones: `Lorem ipsum dolor sit amet, consectetur adipiscing elit.  Duis sodales dapibus lorem, non imperdiet elit volutpat et.  Aenean imperdiet ultrices sagittis.  Ut elit mi, dictum sed tristique non, lacinia ac augue.  Maecenas sem odio, posuere congue eleifend vel, elementum ac nisl.  Duis nec tristique arcu, non imperdiet tortor.  Sed a neque eget leo sagittis consequat ut a mauris.  Nulla sodales consectetur malesuada.  Phasellus euismod sed nisl ac euismod.  Vestibulum at consequat mauris.  Nam sollicitudin vel urna non posuere.`,
-    fecha: "7/03/18"
-  }
-];
+app.get("/usuarios", (req, res) => {
+  listUsers().then(users => {
+    res.send(users);
+  });
+});
+
+const format_message = (nombre, notes) => {
+  return {
+    type: "ephemeral",
+    text: `*Notas de ${nombre}*`,
+    attachments: notes.map(d => {
+      return {
+        title: d.titulo,
+        color: d.nota >= 7 ? "good" : "warning",
+        fields: [
+          {
+            title: "Nota",
+            value: `*${d.nota}*`,
+            short: true
+          },
+          {
+            title: "Enlace",
+            value: d.link == "" ? "---" : d.link,
+            short: true
+          },
+          {
+            title: "Fecha",
+            value: d.fecha,
+            short: true
+          },
+          {
+            title: "Observaciones",
+            value: d.observaciones == "" ? "---" : d.observaciones
+          }
+        ]
+      };
+    })
+  };
+};
 
 app.post("/mis_notas", (req, res) => {
-  const { token, user_name, user_id } = req.body;
+  const { token, user_name, user_id, response_url } = req.body;
   if (token === process.env.SLACK_VERIFICATION_TOKEN) {
-    find(user_id)
+    findUser(user_id)
       .then(r => {
         if (r.data.ok) {
           const { user } = r.data;
-          const responseData = {
-            type: "ephemeral",
-            text: `*Notas de ${user.real_name}*`,
-            attachments: fakeData.map(d => {
-              return {
-                title: d.titulo,
-                color: d.nota > 7 ? "good" : "warning",
-                fields: [
-                  {
-                    title: "Nota",
-                    value: `*${d.nota}*`,
-                    short: true
-                  },
-                  {
-                    title: "Enlace",
-                    value: d.link,
-                    short: true
-                  },
-                  {
-                    title: "Fecha",
-                    value: d.fecha,
-                    short: true
-                  },
-                  {
-                    title: "Observaciones",
-                    value: d.observaciones
-                  }
-                ]
-              };
-            })
-          };
+
+          // Mandamos respuesta inicial
           res.type("json");
-          res.send(JSON.stringify(responseData));
+          res.send({
+            type: "ephemeral",
+            text: `*Buscando las notas de ${user.real_name}...*`
+          });
+
+          // Armamos respuesta con las notas
+          get_notes_of_student(user.real_name).then(notes => {
+            const message = format_message(user.real_name, notes);
+            request({
+              url: response_url,
+              method: "POST",
+              json: true,
+              body: message
+            });
+          });
         } else {
           res.status(404).send("User not found");
         }
@@ -82,6 +94,12 @@ app.post("/mis_notas", (req, res) => {
   } else {
     res.status(503).send("Slack verification token error");
   }
+});
+
+app.get("/set_gsheets_code", (req, res) => {
+  const code = req.query.code;
+  a(code);
+  res.send();
 });
 
 app.listen(process.env.PORT, () => {

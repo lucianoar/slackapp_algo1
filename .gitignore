@@ -1,3 +1,5 @@
 .env
 node_modules
 yarn.lock
+credentials.json
+gsheets_client_secret.json
