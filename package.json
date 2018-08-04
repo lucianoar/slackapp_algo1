@@ -1,7 +1,7 @@
 {
   "name": "slackapp_algo1",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.0.1-beta1",
   "description": "Aplicación de Slack de la cátedra Algoritmos y Estructuras de Datos I de la UNCuyo",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
