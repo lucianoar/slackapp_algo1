@@ -4,10 +4,12 @@ const express = require("express");
 const request = require("request");
 const bodyParser = require("body-parser");
 const { findUser, listUsers } = require("./users");
-const { a } = require("./gsheets.js");
 const debug = require("debug")("slackapp_algo1");
 const { google } = require("googleapis");
-const { get_notes_of_student } = require("./gsheets");
+const {
+  get_notes_of_student,
+  write_students_slack_names
+} = require("./gsheets");
 
 const app = express();
 
@@ -16,7 +18,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 app.get("/", (req, res) => {
-  res.send("<h2>Slack app algo1 running...</h2>");
+  res.sendfile("./views/index.html");
 });
 
 app.get("/usuarios", (req, res) => {
@@ -96,10 +98,10 @@ app.post("/mis_notas", (req, res) => {
   }
 });
 
-app.get("/set_gsheets_code", (req, res) => {
-  const code = req.query.code;
-  a(code);
-  res.send();
+app.post("/update_users", (req, res) => {
+  write_students_slack_names().then(message => {
+    res.send('Usuarios actualizados <a href="/">Volver</a>');
+  });
 });
 
 app.listen(process.env.PORT, () => {

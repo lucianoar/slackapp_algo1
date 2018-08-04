@@ -2,9 +2,10 @@ require("dotenv").config();
 const fs = require("fs");
 const readline = require("readline");
 const { google } = require("googleapis");
+const { listUsers } = require("./users.js");
 const debug = require("debug")("googleapis_sheets");
 const OAuth2Client = google.auth.OAuth2;
-const SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"];
+const SCOPES = ["https://www.googleapis.com/auth/spreadsheets"];
 const TOKEN_PATH = "credentials.json";
 
 const keys = JSON.parse(process.env.CLIENT_SECRET_GOOGLE_AUTH);
@@ -91,4 +92,55 @@ const get_notes_of_student = real_name => {
   });
 };
 
-module.exports = { get_notes_of_student };
+const clear_students_names = () => {
+  return new Promise((res, rej) => {
+    const sheets = google.sheets({ version: "v4", auth });
+    sheets.spreadsheets.values.batchClear(
+      {
+        spreadsheetId: process.env.SPREADSHEET_ID,
+        ranges: [process.env.STUDENTS_RANGE]
+      },
+      (err, r) => {
+        if (err) {
+          debug(err);
+          rej(err);
+        } else {
+          debug("Student names cleared");
+          res(r);
+        }
+      }
+    );
+  });
+};
+
+const write_students_slack_names = () => {
+  return new Promise((res, rej) => {
+    listUsers().then(users => {
+      const sheets = google.sheets({ version: "v4", auth });
+      const values = users.map(u => [u.real_name, u.name]);
+      clear_students_names().then(() => {
+        sheets.spreadsheets.values.update(
+          {
+            spreadsheetId: process.env.SPREADSHEET_ID,
+            range: process.env.STUDENTS_RANGE,
+            valueInputOption: "RAW",
+            resource: { values }
+          },
+          (err, r) => {
+            if (err) {
+              debug(err);
+              rej(err);
+            } else {
+              res(r);
+            }
+          }
+        );
+      });
+    });
+  });
+};
+
+module.exports = {
+  get_notes_of_student,
+  write_students_slack_names
+};
